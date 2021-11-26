@@ -3,7 +3,7 @@ import numpy as np
 import warnings
 import sklearn.preprocessing
 import sklearn.model_selection
-
+import sklearn.metrics
 
 # Model Trainer class
 class ModelTrainer:
@@ -163,7 +163,7 @@ class ModelTrainer:
     @staticmethod
     def objective_function(Y_true, Y_est, function="mse"):
         if function == "mse":
-            return np.mean(np.square(np.asmatrix(Y_true) - Y_est))
+            return sklearn.metrics.mean_squared_error(Y_true, Y_est, multioutput='uniform_average')
 
 
 # Model Tester class
@@ -188,7 +188,7 @@ class ModelTester:
 
         # Standardize the testing X data
         X_test_scl = self.modeltrainer.scale_dataframe(
-            X_test, self.modeltrainer.scaler_X_train, inverse=True
+            X_test, self.modeltrainer.scaler_X_train
         )
         self.X_test_scl = X_test_scl
 

@@ -57,7 +57,7 @@ class LASSO(MachineLearningAlgo):
         if hyperparameter_grid is None:
             # A default value for the hyperparam grid
             self.hyperparameter_grid = {}
-            self.hyperparameter_grid["lambda"] = np.power(10, np.linspace(-5, 1, 100))
+            self.hyperparameter_grid["lambda"] = np.power(10, np.linspace(-5, 2, 100))
             self.hyperparameter_grid["use_intercept"] = [False, True]
             self.hyperparameter_grid["seed"] = [0, 666]
 
