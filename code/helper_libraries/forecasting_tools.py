@@ -62,7 +62,14 @@ def rolling_pre(Y, X, model_list, ins_window="30d", oos_window="1d"):
 
 
 def produce_forecasts_rolling(
-    Y, X, model_list, forecasting_pipeline, ins_window="30d", oos_window="1d", expanding = False, pipeline_kwargs={}
+    Y,
+    X,
+    model_list,
+    forecasting_pipeline,
+    ins_window="30d",
+    oos_window="1d",
+    expanding=False,
+    pipeline_kwargs={},
 ):
 
     # Date info
@@ -74,7 +81,7 @@ def produce_forecasts_rolling(
     forecast_log = {}
 
     # Number of iterations
-    # given by ceil((OOS Data)/(OOS Window))
+    # given by ceil((OOS Length)/(OOS Window))
     T = int(np.ceil((date_stop - date_zero - pd.Timedelta(ins_window)) / pd.Timedelta(oos_window)))
 
     # Keep forecasting until we run out of OOS data
@@ -86,7 +93,7 @@ def produce_forecasts_rolling(
         date_ins_end = date_ins_start + pd.Timedelta(ins_window) - pd.Timedelta("1s")
         date_oos_start = date_ins_start + pd.Timedelta(ins_window)
         date_oos_end = date_oos_start + pd.Timedelta(oos_window) - pd.Timedelta("1s")
-        
+
         # If we are using an expanding training window
         if expanding:
             date_ins_start = date_zero
@@ -99,7 +106,13 @@ def produce_forecasts_rolling(
 
         # No data for this OOS period, so just skip
         if not len(Y_oos):
-            forecast_log[t] = {"skip": True}
+            forecast_log[t] = {
+                "skip": True,
+                "date_ins_start": date_ins_start,
+                "date_ins_end": date_ins_end,
+                "date_oos_start": date_oos_start,
+                "date_oos_end": date_oos_end,
+            }
             continue
 
         # Perform forecasts and save results
@@ -107,7 +120,11 @@ def produce_forecasts_rolling(
             model_list, Y_ins, X_ins, Y_oos, X_oos, **pipeline_kwargs
         )
         forecast_output[t] = forecast_output_t
+        forecast_log_t["skip"] = False
+        forecast_log_t["date_ins_start"] = date_ins_start
+        forecast_log_t["date_ins_end"] = date_ins_end
+        forecast_log_t["date_oos_start"] = date_oos_start
+        forecast_log_t["date_oos_end"] = date_oos_end
         forecast_log[t] = forecast_log_t
-        forecast_log[t]["skip"] = False
 
     return forecast_output, forecast_log

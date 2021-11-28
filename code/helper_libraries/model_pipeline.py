@@ -84,7 +84,7 @@ class ModelTrainer:
 
         return Y_train_scl, X_train_scl, Y_valid_scl, X_valid_scl
 
-    def validation(self, frac=0.8, n_iter=10):
+    def validation(self, frac=0.8, n_iter=1):
         # frac is size of train data
         # n_iter is number of hyperparam draws
 
