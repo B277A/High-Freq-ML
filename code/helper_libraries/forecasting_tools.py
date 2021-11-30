@@ -5,6 +5,7 @@ sys.path.append(os.path.abspath(os.path.join("../")))
 import pandas as pd
 import numpy as np
 from helper_libraries.model_pipeline import *
+from tqdm.auto import tqdm
 
 
 def rolling_pre(Y, X, model_list, ins_window="30d", oos_window="1d"):
@@ -70,6 +71,7 @@ def produce_forecasts_rolling(
     oos_window="1d",
     expanding=False,
     pipeline_kwargs={},
+    disable_progress_bar=False,
 ):
 
     # Date info
@@ -82,10 +84,15 @@ def produce_forecasts_rolling(
 
     # Number of iterations
     # given by ceil((OOS Length)/(OOS Window))
-    T = int(np.ceil((date_stop - date_zero - pd.Timedelta(ins_window)) / pd.Timedelta(oos_window)))
+    T = int(
+        np.ceil(
+            (date_stop - date_zero - pd.Timedelta(ins_window))
+            / pd.Timedelta(oos_window)
+        )
+    )
 
     # Keep forecasting until we run out of OOS data
-    for t in range(T):
+    for t in tqdm(range(T), disable=disable_progress_bar):
         # print('Iteration: ', t)
 
         # Define dates

@@ -4,6 +4,7 @@ import warnings
 import sklearn.preprocessing
 import sklearn.model_selection
 import sklearn.metrics
+import logging
 
 # Model Trainer class
 class ModelTrainer:
@@ -37,6 +38,10 @@ class ModelTrainer:
         # Only check data if requested
         if check_data:
             self.check_data()
+
+        # Just set logger to main, better than passing a specific
+        # name for now
+        self.logger = logging.getLogger("__main__")
 
     def check_data(self):
 
@@ -84,7 +89,7 @@ class ModelTrainer:
 
         return Y_train_scl, X_train_scl, Y_valid_scl, X_valid_scl
 
-    def validation(self, frac=0.8, n_iter=1):
+    def validation(self, frac=0.8, n_iter_default=10, objective_function="mse"):
         # frac is size of train data
         # n_iter is number of hyperparam draws
 
@@ -92,9 +97,12 @@ class ModelTrainer:
         Y_train, X_train, Y_valid, X_valid = self.split_data(frac)
 
         # Standardize data
-        Y_train_scl, X_train_scl, Y_valid_scl, X_valid_scl = self.scale_train_valid_data(
-            Y_train, X_train, Y_valid, X_valid
-        )
+        (
+            Y_train_scl,
+            X_train_scl,
+            Y_valid_scl,
+            X_valid_scl,
+        ) = self.scale_train_valid_data(Y_train, X_train, Y_valid, X_valid)
         self.Y_train_scl = Y_train_scl
         self.X_train_scl = X_train_scl
         self.Y_valid_scl = Y_valid_scl
@@ -106,6 +114,9 @@ class ModelTrainer:
         # Validate models
         for model in self.model_list:
 
+            # Log
+            self.logger.info(f"Validating {model.name}")
+
             # List of possible hyperparameters and their values
             # for the model
             hyperparameter_grid = model.hyperparameter_grid
@@ -113,41 +124,62 @@ class ModelTrainer:
             # Objective function values
             error_list = []
 
-            # Grab random hyperparameters
-            for hyperparam_draw in sklearn.model_selection.ParameterSampler(
-                hyperparameter_grid, n_iter=n_iter, random_state=self.seed
-            ):
+            # Check if there are no hyperparams needed
+            if not len(model.hyperparameter_grid):
 
-                # Fit the model using these hyperparameters
-                Y_hat_scl, _ = model.fit(
-                    Y_train_scl,
-                    X_train_scl,
-                    X_valid_scl,
-                    hyperparameters=hyperparam_draw,
+                hyperparameters_opt = {}
+
+            # Otherwise, validate to pick the best ones
+            else:
+
+                # Get number of iterations to use for model
+                if model.n_iter:
+                    n_iter = model.n_iter
+                else:
+                    n_iter = n_iter_default
+
+                # Grab random hyperparameters
+                for hyperparam_draw in sklearn.model_selection.ParameterSampler(
+                    hyperparameter_grid, n_iter=n_iter, random_state=self.seed
+                ):
+
+                    # Fit the model using these hyperparameters
+                    Y_hat_scl, _ = model.fit(
+                        Y_train_scl,
+                        X_train_scl,
+                        X_valid_scl,
+                        hyperparameters=hyperparam_draw,
+                    )
+
+                    # Rescale output
+                    Y_hat = self.scaler_Y_train.inverse_transform(
+                        Y_hat_scl.reshape(-1, 1)
+                    )
+
+                    error_list.append(
+                        [
+                            hyperparam_draw,
+                            self.objective_function(
+                                Y_valid, Y_hat, function=objective_function
+                            ),
+                        ]
+                    )
+
+                hyperparameters_opt = (
+                    pd.DataFrame(error_list, columns=["hyperparameters", "error"])
+                    .sort_values(by="error")
+                    .iloc[0]["hyperparameters"]
                 )
 
-                # Rescale output
-                Y_hat = self.scaler_Y_train.inverse_transform(Y_hat_scl)
+                # DEBUG
+                self.error_list = pd.DataFrame(
+                    error_list, columns=["hyperparameters", "error"]
+                ).sort_values(by="error")
 
-                error_list.append(
-                    [
-                        hyperparam_draw,
-                        self.objective_function(Y_valid, Y_hat, function="mse"),
-                    ]
-                )
-
-            hyperparameters_opt = (
-                pd.DataFrame(error_list, columns=["hyperparameters", "error"])
-                .sort_values(by="error")
-                .iloc[0]["hyperparameters"]
-            )
+            # Save optimal hyperparameters
             model_hyperparameters_opt.append(hyperparameters_opt)
 
-            # DEBUG
-            self.error_list = pd.DataFrame(
-                error_list, columns=["hyperparameters", "error"]
-            ).sort_values(by="error")
-
+        # Save the best hyperparameters
         self.model_hyperparameters_opt = model_hyperparameters_opt
 
     def crossvalidation(self, K=5):
@@ -156,14 +188,20 @@ class ModelTrainer:
     @staticmethod
     def scale_dataframe(df, scaler, inverse=False):
         if not inverse:
-            return pd.DataFrame(scaler.transform(df), index=df.index, columns=df.columns)
+            return pd.DataFrame(
+                scaler.transform(df), index=df.index, columns=df.columns
+            )
         else:
-            return pd.DataFrame(scaler.inverse_transform(df), index=df.index, columns=df.columns)
+            return pd.DataFrame(
+                scaler.inverse_transform(df), index=df.index, columns=df.columns
+            )
 
     @staticmethod
     def objective_function(Y_true, Y_est, function="mse"):
         if function == "mse":
-            return sklearn.metrics.mean_squared_error(Y_true, Y_est, multioutput='uniform_average')
+            return sklearn.metrics.mean_squared_error(
+                Y_true, Y_est, multioutput="uniform_average"
+            )
 
 
 # Model Tester class
@@ -184,6 +222,10 @@ class ModelTester:
     def __init__(self, modeltrainer):
         self.modeltrainer = modeltrainer
 
+        # Just set logger to main, better than passing a specific
+        # name for now
+        self.logger = logging.getLogger("__main__")
+
     def forecast(self, Y_test, X_test):
 
         # Standardize the testing X data
@@ -198,6 +240,7 @@ class ModelTester:
 
         # Output list; forecasts using each model
         model_forecasts_list = []
+        model_params_list = []
 
         # For each model, make a forecast
         for i in range(len(self.modeltrainer.model_list)):
@@ -205,7 +248,7 @@ class ModelTester:
             model = self.modeltrainer.model_list[i]
             hyperparameters = self.modeltrainer.model_hyperparameters_opt[i]
 
-            Y_hat_scl, _ = model.fit(
+            Y_hat_scl, model_params = model.fit(
                 Y_train_scl, X_train_scl, X_test_scl, hyperparameters=hyperparameters
             )
 
@@ -216,5 +259,6 @@ class ModelTester:
             )
 
             model_forecasts_list.append(Y_hat)
+            model_params_list.append(model_params)
 
-        return model_forecasts_list
+        return model_forecasts_list, model_params_list
