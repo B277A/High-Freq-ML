@@ -129,7 +129,7 @@ dmypy.json
 .pyre/
 
 # Temp folders
-_*/
+_temp/
 
 # Data folders
 proc/
