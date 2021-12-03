@@ -34,7 +34,7 @@ class MachineLearningAlgo:
         self.n_iter = n_iter
 
         # Logger set to main, simpler than specifying specific name
-        self.logger = logging.getLogger("__main__")
+        self.logger = logging.getLogger()
 
     def fit(self, Y, X, Z, hyperparameters=None):
         raise NotImplementedError

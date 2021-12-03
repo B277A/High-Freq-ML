@@ -4,8 +4,13 @@ sys.path.append(os.path.abspath(os.path.join("../")))
 
 import pandas as pd
 import numpy as np
-from helper_libraries.model_pipeline import *
+import logging
+import multiprocessing
 from tqdm.auto import tqdm
+from helper_libraries.model_pipeline import *
+
+# Start logger
+logger = logging.getLogger()
 
 
 def produce_forecasts_rolling(
@@ -16,8 +21,8 @@ def produce_forecasts_rolling(
     ins_window="30d",
     oos_window="1d",
     expanding=False,
-    pipeline_kwargs={},
     disable_progress_bar=False,
+    parpool=None,
 ):
 
     # Date info
@@ -37,9 +42,12 @@ def produce_forecasts_rolling(
         )
     )
 
-    # Keep forecasting until we run out of OOS data
-    for t in tqdm(range(T), disable=disable_progress_bar):
-        # print('Iteration: ', t)
+    # Function that runs for each iteration t
+    # Defining the function as a global is a hack to stop the pool from
+    # throwing a "pickle" error
+    global iteration_func
+
+    def iteration_func(t):
 
         # Define dates
         date_ins_start = date_zero + t * pd.Timedelta(oos_window)
@@ -59,25 +67,70 @@ def produce_forecasts_rolling(
 
         # No data for this OOS period, so just skip
         if not len(Y_oos):
-            forecast_log[t] = {
+            forecast_log_t = {
                 "skip": True,
                 "date_ins_start": date_ins_start,
                 "date_ins_end": date_ins_end,
                 "date_oos_start": date_oos_start,
                 "date_oos_end": date_oos_end,
             }
-            continue
+            return t, None, forecast_log
 
-        # Perform forecasts and save results
+        # Perform forecasts
         forecast_output_t, forecast_log_t = forecasting_pipeline(
-            model_list, Y_ins, X_ins, Y_oos, X_oos, **pipeline_kwargs
+            model_list, Y_ins, X_ins, Y_oos, X_oos
         )
-        forecast_output[t] = forecast_output_t
+
+        # Format results
         forecast_log_t["skip"] = False
         forecast_log_t["date_ins_start"] = date_ins_start
         forecast_log_t["date_ins_end"] = date_ins_end
         forecast_log_t["date_oos_start"] = date_oos_start
         forecast_log_t["date_oos_end"] = date_oos_end
-        forecast_log[t] = forecast_log_t
+
+        # Logger
+        logger.info(f"Completed iteration {t}")
+
+        return t, forecast_output_t, forecast_log_t
+
+    # # Set up forecast iterator
+    # if parpool:
+    #     logger.info("Setting up forecast iterator (with multiprocessing)")
+    #     iteration_map = parpool.imap_unordered(iteration_func, range(T))
+    # else:
+    #     logger.info("Setting up forecast iterator (no multiprocessing)")
+    #     iteration_map = map(iteration_func, range(T))
+    #
+    # # Keep forecasting until we run out of OOS data
+    # for t, forecast_output_t, forecast_log_t in tqdm(
+    #     iteration_map, total=T, disable=disable_progress_bar
+    # ):
+    #
+    #     # Save results
+    #     forecast_output[t] = forecast_output_t
+    #     forecast_log[t] = forecast_log_t
+
+    # Perform forecasts
+    if parpool:
+        logging.info("Starting parallel pool")
+        with multiprocessing.Pool(parpool) as p:
+            for t, forecast_output_t, forecast_log_t in tqdm(
+                p.imap_unordered(iteration_func, range(T)),
+                total=T,
+                disable=disable_progress_bar,
+            ):
+                # Save results
+                forecast_output[t] = forecast_output_t
+                forecast_log[t] = forecast_log_t
+            logging.info("Shuting down parallel pool")
+    else:
+        for t, forecast_output_t, forecast_log_t in tqdm(
+            map(iteration_func, range(T)),
+            total=T,
+            disable=disable_progress_bar,
+        ):
+            # Save results
+            forecast_output[t] = forecast_output_t
+            forecast_log[t] = forecast_log_t
 
     return forecast_output, forecast_log

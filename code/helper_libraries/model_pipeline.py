@@ -41,7 +41,7 @@ class ModelTrainer:
 
         # Just set logger to main, better than passing a specific
         # name for now
-        self.logger = logging.getLogger("__main__")
+        self.logger = logging.getLogger()
 
     def check_data(self):
 
@@ -224,7 +224,7 @@ class ModelTester:
 
         # Just set logger to main, better than passing a specific
         # name for now
-        self.logger = logging.getLogger("__main__")
+        self.logger = logging.getLogger()
 
     def forecast(self, Y_test, X_test):
 

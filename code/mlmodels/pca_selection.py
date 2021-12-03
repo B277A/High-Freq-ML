@@ -23,12 +23,12 @@ class PCA_selection(MachineLearningAlgo):
     def fit(self, Y_ins, X_ins, X_oos, hyperparameters=None):
 
         if hyperparameters is None:
-            warnings.warn("Warning: Using default hyperparameters in fit")
+            self.logger.warning("Warning: Using default hyperparameters in fit")
             hyperparameters = self.hyperparameters
 
         # Ensure number of components is valid
         if hyperparameters["selection_n_components"] > np.shape(X_ins)[1]:
-            warnings.warn(
+            self.logger.debug(
                 " ".join(
                     [
                         "Warning: PCA components > number of signals,",
