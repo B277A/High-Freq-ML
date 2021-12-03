@@ -74,7 +74,7 @@ def produce_forecasts_rolling(
                 "date_oos_start": date_oos_start,
                 "date_oos_end": date_oos_end,
             }
-            return t, None, forecast_log
+            return t, None, forecast_log_t
 
         # Perform forecasts
         forecast_output_t, forecast_log_t = forecasting_pipeline(

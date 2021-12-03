@@ -52,39 +52,7 @@ if __name__ == "__main__":
     # Set up some sample data for the tests
     sample_data_df = pd.read_parquet("../../data/proc/_temp/1996_all.parquet")
 
-    # Some data that comes with seaborn
-    iris_df = sns.load_dataset("iris")
-    iris_df.head()
-
-    # Add a whole bunch of columns that are rotations of the original data plus noise
-    np.random.seed(1)
-    iris_hf_df = iris_df.copy()
-    K = 150
-    X_new_cols = []
-    for k in range(K):
-        new_col_names = [f"petal_width_{k}", f"sepal_length_{k}", f"sepal_width_{k}"]
-        iris_hf_df[new_col_names] = (
-            iris_hf_df[["petal_width", "sepal_length", "sepal_width"]]
-            @ np.random.rand(3, 3)
-            + (np.random.rand(len(iris_hf_df), 3) - 0.5) * 30
-        )
-        X_new_cols.append(new_col_names)
-
-    # Redefine Y variable as a rotation of the true variables
-    iris_hf_df["petal_length"] = iris_hf_df[
-        ["petal_width", "sepal_length", "sepal_width"]
-    ] @ np.random.rand(3, 1)
-    X_new_cols = sum(X_new_cols, [])
-
-    # Add a datetime index
-    iris_hf_df.index = pd.date_range(
-        start=dt.datetime.today().date(), periods=len(iris_hf_df)
-    )
-
     ## Define data for forecasting
-    Y = iris_hf_df[["petal_length"]]
-    X = iris_hf_df[X_new_cols]
-
     Y = sample_data_df[["ff__mkt"]].head(2500)
     X = (
         sample_data_df[["ff__hml", "ff__smb", "ff__rmw", "ff__cma", "ff__umd"]]
@@ -139,6 +107,7 @@ if __name__ == "__main__":
         mtest = ModelTester(mtrain)
         oos_forecasts, model_params = mtest.forecast(Y_oos, X_oos)
         forecast_output = oos_forecasts
+        forecast_log["fitted_parameters"] = model_params
 
         return forecast_output, forecast_log
 
@@ -160,7 +129,29 @@ if __name__ == "__main__":
     # Shut down parallel pool
 
     ### Export
+    logging.info("Preparing results for export")
 
-    forecast_output[3][0][0].to_csv(f"../../data/output/test_output_0.csv")
+    ## Formatting
+    # Format the forecast results
+    forecast_output_df = pd.DataFrame(forecast_output).T.sort_index()
+    forecast_output_df.index.name = "t"
+    forecast_output_df.columns.name = "model"
+    forecast_output_fmt_df = pd.concat(
+        [
+            pd.concat(forecast_output_df[model_col].values).iloc[:, 0].rename(model_col)
+            for model_col in forecast_output_df.columns
+        ],
+        axis=1,
+    )
+
+    # Format the log
+    forecast_log_df = pd.DataFrame(forecast_log).T.sort_index()
+    forecast_log_df.index.name = "t"
+    forecast_log_df.columns.name = "model"
+
+    # Export
+    forecast_output_fmt_df.columns = [str(x) for x in forecast_output_fmt_df.columns]
+    forecast_output_fmt_df.to_parquet(f"{main_directory}/data/_temp/test.parquet")
+    forecast_log_df.to_pickle(f"{main_directory}/data/_temp/test_log.pkl")
 
     logging.info("Done!")
