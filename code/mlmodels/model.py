@@ -73,7 +73,10 @@ class PostSelectionModel(MachineLearningAlgo):
         # selection hyperparams from forecast hyperparams
         for key in self.model_selection.hyperparameter_grid:
             if "selection_" not in key:
-                print(f"{self.model_selection.hyperparameter_grid.keys() = }")
+                print(
+                    "Hyperparameter grid keys:"
+                    + f"{self.model_selection.hyperparameter_grid.keys()}"
+                )
                 exception_str = (
                     f'The suffix "selection_" is not a part '
                     + f"of the following hyperparameter key: {key}"
@@ -86,7 +89,7 @@ class PostSelectionModel(MachineLearningAlgo):
     def fit(self, Y_ins, X_ins, X_oos, hyperparameters=None):
 
         if hyperparameters is None:
-            warnings.warn("Warning: Using default hyperparameters in fit")
+            self.logger.warning(f"Using default hyperparamters in fit for {self.name}")
             hyperparameters = self.hyperparameters
 
         # First step is to use selection to cut down X

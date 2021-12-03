@@ -33,7 +33,7 @@ class LinearRegression(MachineLearningAlgo):
             raise NotImplementedError
 
         if np.shape(X_oos)[1] > np.shape(X_oos)[0]:
-            self.logger.warning("Linear Regression does not have full rank: K>>N!")
+            self.logger.debug("Linear Regression does not have full rank: K>>N!")
 
         # Model
         sklearn_model_fit = sklearn_model.fit(X_ins, Y_ins)
@@ -77,7 +77,7 @@ class LASSO(MachineLearningAlgo):
     def fit(self, Y_ins, X_ins, X_oos, hyperparameters=None):
 
         if hyperparameters is None:
-            warnings.warn("Warning: Using default hyperparameters in fit")
+            self.logger.warning(f"Using default hyperparamters in fit for {self.name}")
             hyperparameters = self.hyperparameters
 
         sklearn_model = sklearn_Lasso(
@@ -98,7 +98,7 @@ class LASSO(MachineLearningAlgo):
             # Don't do anything special
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                self.logger.warning("LASSO Convergence Warning")
+                self.logger.debug("LASSO Convergence Warning")
                 sklearn_model_fit = sklearn_model.fit(X_ins, Y_ins)
         except Exception as e:
             raise (e)
@@ -144,7 +144,7 @@ class ENet(MachineLearningAlgo):
     def fit(self, Y_ins, X_ins, X_oos, hyperparameters=None):
 
         if hyperparameters is None:
-            warnings.warn("Warning: Using default hyperparameters in fit")
+            self.logger.warning(f"Using default hyperparamters in fit for {self.name}")
             hyperparameters = self.hyperparameters
 
         sklearn_model = sklearn_Enet(

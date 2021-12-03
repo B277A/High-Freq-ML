@@ -8,60 +8,6 @@ from helper_libraries.model_pipeline import *
 from tqdm.auto import tqdm
 
 
-def rolling_pre(Y, X, model_list, ins_window="30d", oos_window="1d"):
-
-    # Initial data
-    date_zero = Y.index[0]
-    date_stop = Y.index[-1]
-    date_oos_start = date_zero
-
-    # Output data
-    num_models = len(model_list)
-    model_forecasts_list = [[] * num_models]
-    log = {}
-    log["hyperparameters"] = []
-
-    # Iteration
-    t = 0
-
-    # Keep forecasting until we run out of OOS data
-    while date_oos_start < date_stop:
-        #         print('Iteration: ', t)
-
-        # Define dates
-        date_ins_start = date_zero + t * pd.Timedelta(oos_window)
-        date_ins_end = date_ins_start + pd.Timedelta(ins_window) - pd.Timedelta("1s")
-        date_oos_start = date_ins_start + pd.Timedelta(ins_window)
-        date_oos_end = date_oos_start + pd.Timedelta(oos_window) - pd.Timedelta("1s")
-
-        # Define data
-        Y_ins = Y.loc[date_ins_start:date_ins_end, :]
-        X_ins = X.loc[date_ins_start:date_ins_end, :]
-        Y_oos = Y.loc[date_oos_start:date_oos_end, :]
-        X_oos = X.loc[date_oos_start:date_oos_end, :]
-
-        # No data for this OOS period, so just skip
-        if not len(Y_oos):
-            t += 1
-            continue
-
-        mtrain = ModelTrainer(model_list, Y_ins, X_ins, seed=444)
-        mtrain.validation()
-        log["hyperparameters"].append(mtrain.model_hyperparameters_opt)
-
-        mtest = ModelTester(mtrain)
-        oos_forecasts = mtest.forecast(Y_oos, X_oos)
-
-        for i in range(len(model_list)):
-            oos_forecast = oos_forecasts[i]
-            oos_forecast.index = Y_oos.index
-            model_forecasts_list[i].append(oos_forecast)
-
-        t += 1
-
-    return model_forecasts_list
-
-
 def produce_forecasts_rolling(
     Y,
     X,

@@ -246,6 +246,8 @@ class ModelTester:
         for i in range(len(self.modeltrainer.model_list)):
 
             model = self.modeltrainer.model_list[i]
+            self.logger.info(f"Forecasting for {model.name}")
+
             hyperparameters = self.modeltrainer.model_hyperparameters_opt[i]
 
             Y_hat_scl, model_params = model.fit(
