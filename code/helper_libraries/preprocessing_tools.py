@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-def add_lagged_intradaily_averages(data_df, columns, window, lag_amount, win_type=None):
+def add_lagged_intradaily_averages(data_df, columns, window=None, lag_amount=None, win_type=None):
     """
     Computes a rolling average over the given window of the high-frequency returns 
     and shifts forward by the given lag amount. 
@@ -48,11 +48,11 @@ def add_lagged_intradaily_averages(data_df, columns, window, lag_amount, win_typ
     for col in columns:
         data_df[col + f"_{window}_{lag_amount}_lagged_intradaily_avg"] = lagged_averages_df[
             col
-        ].bfill()
+        ]
 
     return data_df
 
-def add_lagged_daily_averages(data_df, columns, window, lag_amount, win_type=None):
+def add_lagged_daily_averages(data_df, columns, window=None, lag_amount=None, win_type=None):
     """
     First computes the average return for each day in the dataset. Then,
     computing a rolling average over the given window of the daily returns 
@@ -97,10 +97,10 @@ def add_lagged_daily_averages(data_df, columns, window, lag_amount, win_type=Non
         .mean()
         .rolling(window, win_type=win_type)
         .mean()
-        .shift(1)
+        .dropna()
+        .shift(lag_amount)
         .reset_index()
         .rename(columns={"datetime": "date"})
-        .bfill()
     )
 
     data_df = data_df.merge(

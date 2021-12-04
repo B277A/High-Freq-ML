@@ -88,9 +88,6 @@ def produce_forecasts_rolling(
         forecast_log_t["date_oos_start"] = date_oos_start
         forecast_log_t["date_oos_end"] = date_oos_end
 
-        # Logger
-        logger.info(f"Completed iteration {t}")
-
         return t, forecast_output_t, forecast_log_t
 
     # # Set up forecast iterator
@@ -112,23 +109,33 @@ def produce_forecasts_rolling(
 
     # Perform forecasts
     if parpool:
-        logging.info("Starting parallel pool")
+
+        logging.info(f"Starting multiprocessing pool with {parpool} processes")
         with multiprocessing.Pool(parpool) as p:
+
             for t, forecast_output_t, forecast_log_t in tqdm(
                 p.imap_unordered(iteration_func, range(T)),
                 total=T,
                 disable=disable_progress_bar,
             ):
+
                 # Save results
                 forecast_output[t] = forecast_output_t
                 forecast_log[t] = forecast_log_t
+
+                # Logger
+                logger.info(f"Completion Progress: {len(forecast_output.keys())}/{T}")
+
             logging.info("Shuting down parallel pool")
+
     else:
+
         for t, forecast_output_t, forecast_log_t in tqdm(
             map(iteration_func, range(T)),
             total=T,
             disable=disable_progress_bar,
         ):
+
             # Save results
             forecast_output[t] = forecast_output_t
             forecast_log[t] = forecast_log_t
