@@ -101,9 +101,10 @@ if __name__ == "__main__":
     Y = concat_data_df[["ff__mkt"]]
 
     # Use these signals
-    X_factors = ["ff__hml", "ff__smb", "ff__rmw", "ff__cma", "ff__umd"]
-    X_factors = sum([[x + "__cts", x + "__jmp"] for x in X_factors], [])
-
+    #X_factors = ["ff__mkt", "ff__hml", "ff__smb", "ff__rmw", "ff__cma", "ff__umd"]
+    #X_factors = sum([[x + "__cts", x + "__jmp"] for x in X_factors], [])
+    X_factors  = list(pd.concat([sample_data_cts_df, sample_data_jmp_df], axis=1).columns)
+    
     # Add a bunch of lagged averages to use as predictors
     old_columns = concat_data_df.columns
     # Most recent lagged return
@@ -112,7 +113,7 @@ if __name__ == "__main__":
     )
     # Average return over the last hour
     concat_data_df = add_lagged_intradaily_averages(
-        concat_data_df, X_factors, window="1h", lag_amount=1
+        concat_data_df, X_factors, window=4, lag_amount=1
     )
     # Average return on the last day, this updates each day
     concat_data_df = add_lagged_daily_averages(
@@ -138,19 +139,25 @@ if __name__ == "__main__":
     logging.info("Setting up estimators")
 
     # Component algos
-    model_forecast_ols = LinearRegression({})
+    model_forecast_ols   = LinearRegression({})
+    
     model_forecast_lasso = LASSO(
-        {"lambda": 1e-5, "use_intercept": False, "seed": 5}, n_iter=500
+        {"lambda": 1e-4, "use_intercept": True, "seed": 666}, n_iter = 200
     )
-    model_forecast_enet = ENet(
-        {"lambda": 1e-5, "l1_ratio": 0.5, "use_intercept": True, "seed": 5}, n_iter=500
+    
+    model_forecast_enet  = ENet(
+        {"lambda": 1e-4, "l1_ratio": 0.5, "use_intercept": True, "seed": 666}, n_iter = 200
     )
-    model_forecast_rf = RandomForest({})
+    
+    model_forecast_rf = RandomForest(
+        {"features": 1, "n_tree": 500, "seed": 5}, n_iter=5, n_signals  = X.iloc[1].shape
+    )
+    
     model_selection_lasso = LASSO_selection({})
     model_selection_pca = PCA_selection({})
 
     # Post-selection algos
-    model_pca_lasso = PostSelectionModel(model_selection_pca, model_forecast_ols)
+    model_pca_ols = PostSelectionModel(model_selection_pca, model_forecast_ols)
     model_pca_rf = PostSelectionModel(model_selection_pca, model_forecast_rf)
     model_lasso_ols = PostSelectionModel(model_selection_lasso, model_forecast_ols)
     model_lasso_rf = PostSelectionModel(model_selection_lasso, model_forecast_rf)
@@ -158,12 +165,7 @@ if __name__ == "__main__":
     model_list = [
         model_forecast_ols,
         model_forecast_lasso,
-        model_forecast_enet,
-        # model_forecast_rf,
-        model_pca_lasso,
-        #  model_pca_rf,
-        model_lasso_ols,
-        #  model_lasso_rf,
+        model_forecast_rf
     ]
 
     ## Main
@@ -195,8 +197,8 @@ if __name__ == "__main__":
         X,
         model_list,
         forecasting_pipeline,
-        ins_window="60d",
-        oos_window="1d",
+        ins_window="5d",
+        oos_window="2d",
         disable_progress_bar=True,
         parpool=parpool,
     )

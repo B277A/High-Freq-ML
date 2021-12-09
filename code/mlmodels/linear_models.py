@@ -26,7 +26,6 @@ class LinearRegression(MachineLearningAlgo):
 
     def fit(self, Y_ins, X_ins, X_oos, hyperparameters=None):
 
-        sklearn_model = sklearn_LR(fit_intercept=True)
         sklearn_model = sklearn_LR()
 
         if np.shape(Y_ins)[1] != 1:
@@ -56,7 +55,7 @@ class LASSO(MachineLearningAlgo):
     ## Additional parameters
 
     def __init__(
-        self, hyperparameters, hyperparameter_grid=None, name="Lasso", n_iter=1000
+        self, hyperparameters, hyperparameter_grid=None, name="Lasso", n_iter=500
     ):
         super().__init__(
             hyperparameters,
@@ -68,9 +67,9 @@ class LASSO(MachineLearningAlgo):
         if hyperparameter_grid is None:
             # A default value for the hyperparam grid
             self.hyperparameter_grid = {}
-            self.hyperparameter_grid["lambda"] = np.power(10, np.linspace(-4, 2, 1000))
-            self.hyperparameter_grid["use_intercept"] = [False, True]
-            self.hyperparameter_grid["seed"] = [0, 666]
+            self.hyperparameter_grid["lambda"] = np.power(10, np.linspace(-3, 1, 500))
+            self.hyperparameter_grid["use_intercept"] = [True]
+            self.hyperparameter_grid["seed"] = [666]
 
         self.debug = {}
 
@@ -122,7 +121,7 @@ class ENet(MachineLearningAlgo):
     ## Additional parameters
 
     def __init__(
-        self, hyperparameters, hyperparameter_grid=None, name="Enet", n_iter=1000
+        self, hyperparameters, hyperparameter_grid=None, name="Enet", n_iter=500
     ):
         super().__init__(
             hyperparameters,
@@ -134,10 +133,10 @@ class ENet(MachineLearningAlgo):
         if hyperparameter_grid is None:
             # A default value for the hyperparam grid
             self.hyperparameter_grid = {}
-            self.hyperparameter_grid["lambda"] = np.power(10, np.linspace(-4, 2, 1000))
+            self.hyperparameter_grid["lambda"] = np.power(10, np.linspace(-3, 1, 500))
             self.hyperparameter_grid["l1_ratio"] = np.linspace(0.02, 1, 100)
-            self.hyperparameter_grid["use_intercept"] = [False, True]
-            self.hyperparameter_grid["seed"] = [0, 666]
+            self.hyperparameter_grid["use_intercept"] = [True]
+            self.hyperparameter_grid["seed"] = [666]
 
         self.debug = {}
 

@@ -16,7 +16,7 @@ class PCA_selection(MachineLearningAlgo):
         if hyperparameter_grid is None:
             # A default value for the hyperparam grid
             self.hyperparameter_grid = {}
-            self.hyperparameter_grid["selection_n_components"] = list(range(1, 11))
+            self.hyperparameter_grid["selection_n_components"] = list(range(1, 15))
 
         self.debug = {}
 
