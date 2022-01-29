@@ -24,14 +24,14 @@ class LASSO_selection(MachineLearningAlgo):
             # A default value for the hyperparam grid
             self.hyperparameter_grid = {}
             self.hyperparameter_grid["selection_lambda"] = np.power(
-                10, np.linspace(-5, 2, 100)
+                10, np.linspace(-3, 1, 40)
             )
-            self.hyperparameter_grid["selection_use_intercept"] = [False, True]
-            self.hyperparameter_grid["selection_seed"] = [0, 666]
+            self.hyperparameter_grid["selection_use_intercept"] = [True]
+            self.hyperparameter_grid["selection_seed"] = [666]
 
         self.debug = {}
 
-    def fit(self, Y_ins, X_ins, X_oos, hyperparameters=None):
+    def fit(self, Y_ins, X_ins, X_oos, Y_oos=None, hyperparameters=None, indicator_predict = None):
 
         if hyperparameters is None:
             self.logger.warning(f"Using default hyperparamters in fit for {self.name}")

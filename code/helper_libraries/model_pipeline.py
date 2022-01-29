@@ -89,7 +89,7 @@ class ModelTrainer:
 
         return Y_train_scl, X_train_scl, Y_valid_scl, X_valid_scl
 
-    def validation(self, frac=0.8, n_iter_default=10, objective_function="mse"):
+    def validation(self, frac=0.8, n_iter_default=2, objective_function="mse"):
         # frac is size of train data
         # n_iter is number of hyperparam draws
 
@@ -144,10 +144,12 @@ class ModelTrainer:
                 ):
 
                     # Fit the model using these hyperparameters
+                    print(hyperparam_draw)
                     Y_hat_scl, _ = model.fit(
                         Y_train_scl,
                         X_train_scl,
                         X_valid_scl,
+                        Y_valid_scl,
                         hyperparameters=hyperparam_draw,
                     )
 
@@ -202,6 +204,9 @@ class ModelTrainer:
             return sklearn.metrics.mean_squared_error(
                 Y_true, Y_est, multioutput="uniform_average"
             )
+        if function == "R2":
+            return (1 - np.sum(np.square(Y_true-Y_est))/np.sum(np.square(Y_true)))
+            
 
 
 # Model Tester class
@@ -249,10 +254,11 @@ class ModelTester:
             self.logger.info(f"Forecasting for {model.name}")
 
             hyperparameters = self.modeltrainer.model_hyperparameters_opt[i]
-
+            
+            indicator_predict = 1
+            
             Y_hat_scl, model_params = model.fit(
-                Y_train_scl, X_train_scl, X_test_scl, hyperparameters=hyperparameters
-            )
+                Y_train_scl, X_train_scl, X_test_scl, hyperparameters=hyperparameters, indicator_predict = indicator_predict)
 
             Y_hat = self.modeltrainer.scale_dataframe(
                 pd.DataFrame(Y_hat_scl, index=Y_test.index, columns=Y_test.columns),

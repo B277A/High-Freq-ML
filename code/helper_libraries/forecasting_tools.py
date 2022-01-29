@@ -12,17 +12,36 @@ from helper_libraries.model_pipeline import *
 # Start logger
 logger = logging.getLogger()
 
+def forecasting_pipeline(model_list, Y_ins, X_ins, Y_oos, X_oos):
 
+    # Output variables
+    forecast_log = {}
+
+    # Train the algos
+    mtrain = ModelTrainer(model_list, Y_ins, X_ins, seed=444)
+    mtrain.validation()
+    forecast_log["hyperparameters"] = mtrain.model_hyperparameters_opt
+
+    # Produce OOS forecasts
+    mtest = ModelTester(mtrain)
+    oos_forecasts, model_params = mtest.forecast(Y_oos, X_oos)
+    forecast_output = oos_forecasts
+    forecast_log["fitted_parameters"] = model_params
+
+    return forecast_output, forecast_log
+    
 def produce_forecasts_rolling(
     Y,
     X,
     model_list,
     forecasting_pipeline,
-    ins_window="30d",
+    ins_window="1000d",
     oos_window="1d",
     expanding=False,
     disable_progress_bar=False,
     parpool=None,
+    time = None,
+    split_run = None,
 ):
 
     # Date info
@@ -49,6 +68,7 @@ def produce_forecasts_rolling(
 
     def iteration_func(t):
 
+        print(t)
         # Define dates
         date_ins_start = date_zero + t * pd.Timedelta(oos_window)
         date_ins_end = date_ins_start + pd.Timedelta(ins_window) - pd.Timedelta("1s")
@@ -89,25 +109,28 @@ def produce_forecasts_rolling(
         forecast_log_t["date_oos_end"] = date_oos_end
 
         return t, forecast_output_t, forecast_log_t
+    
+    global in_sample_func
 
-    # # Set up forecast iterator
-    # if parpool:
-    #     logger.info("Setting up forecast iterator (with multiprocessing)")
-    #     iteration_map = parpool.imap_unordered(iteration_func, range(T))
-    # else:
-    #     logger.info("Setting up forecast iterator (no multiprocessing)")
-    #     iteration_map = map(iteration_func, range(T))
-    #
-    # # Keep forecasting until we run out of OOS data
-    # for t, forecast_output_t, forecast_log_t in tqdm(
-    #     iteration_map, total=T, disable=disable_progress_bar
-    # ):
-    #
-    #     # Save results
-    #     forecast_output[t] = forecast_output_t
-    #     forecast_log[t] = forecast_log_t
+    def in_sample_func():
 
-    # Perform forecasts
+
+        # Define data
+        Y_ins = Y
+        X_ins = X
+        Y_oos = Y
+        X_oos = X
+
+
+        # Perform forecasts
+        insample_output_t, forecast_log_t = forecasting_pipeline(
+            model_list, Y_ins, X_ins, Y_oos, X_oos
+        )
+
+
+        return insample_output_t
+    
+        # Perform forecasts
     if parpool:
 
         logging.info(f"Starting multiprocessing pool with {parpool} processes")
@@ -128,16 +151,31 @@ def produce_forecasts_rolling(
 
             logging.info("Shuting down parallel pool")
 
+    elif split_run:
+         logger.info("Split run")
+         t, forecast_output_t, forecast_log_t = iteration_func(time)
+         # Save results
+         forecast_output[t] = forecast_output_t
+         forecast_log[t] = forecast_log_t
+         
+         logger.info(f"Completion Progress: {time}/{T}")
+        
     else:
-
+        
         for t, forecast_output_t, forecast_log_t in tqdm(
             map(iteration_func, range(T)),
             total=T,
             disable=disable_progress_bar,
         ):
-
+            
             # Save results
             forecast_output[t] = forecast_output_t
             forecast_log[t] = forecast_log_t
+            
+            logger.info(f"Completion Progress: {len(forecast_output.keys())}/{T}")
+            
+        
+    insample_output_t = in_sample_func()
+    logger.info("In Sample estimate")
 
-    return forecast_output, forecast_log
+    return forecast_output, forecast_log, insample_output_t

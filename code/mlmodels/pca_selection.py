@@ -16,11 +16,11 @@ class PCA_selection(MachineLearningAlgo):
         if hyperparameter_grid is None:
             # A default value for the hyperparam grid
             self.hyperparameter_grid = {}
-            self.hyperparameter_grid["selection_n_components"] = list(range(1, 15))
+            self.hyperparameter_grid["selection_n_components"] = [1, 10, 50, 100]
 
         self.debug = {}
 
-    def fit(self, Y_ins, X_ins, X_oos, hyperparameters=None):
+    def fit(self, Y_ins, X_ins, X_oos, Y_oos=None, hyperparameters=None, indicator_predict = None):
 
         if hyperparameters is None:
             self.logger.warning("Warning: Using default hyperparameters in fit")

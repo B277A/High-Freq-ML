@@ -86,7 +86,7 @@ class PostSelectionModel(MachineLearningAlgo):
 
         pass
 
-    def fit(self, Y_ins, X_ins, X_oos, hyperparameters=None):
+    def fit(self, Y_ins, X_ins, X_oos, Y_oos=None, hyperparameters=None, indicator_predict = None):
 
         if hyperparameters is None:
             self.logger.warning(f"Using default hyperparamters in fit for {self.name}")
