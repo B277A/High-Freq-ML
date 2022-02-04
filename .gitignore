@@ -133,4 +133,7 @@ _temp/
 
 # Data folders
 proc/
-Results/
+results/
+
+# Documents
+docs/
