@@ -230,7 +230,7 @@ def get_weights_tanh(model_info_dict):
 
     # Invest whenever prediction exceeds cutoff
     model_pred = model_info_dict["model_pred"]
-    model_pred_std = model_info_dict["model_pred_std"]
+    model_pred_std = np.std(model_pred)
     # y = (intradaily sharpe) * (annualization factor)
     y = model_pred / model_pred_std * np.sqrt(252 * 27)
     # z = standardized y
@@ -294,7 +294,6 @@ def get_trading_results(
     riskfree_returns,
     strategies_list,
     model_list,
-    drop_overnight=False,
     hold_cash=True,
 ):
     """
@@ -341,18 +340,10 @@ def get_trading_results(
 
             # Model predictions
             model_pred = forecast_oss_df[model_col_name]
-            # model_pred_std = np.std(model_pred)
-            model_pred_std = (
-                pd.read_parquet("../../Results/RV/RV_HAR_oss.parquet")
-                .pipe(np.sqrt)
-                .iloc[:, 0]
-                .loc[model_pred.index]
-            )
 
             # Put into dictionary
             model_info_dict = {}
             model_info_dict["model_pred"] = model_pred
-            model_info_dict["model_pred_std"] = model_pred_std
             model_info_dict["spread"] = spread_df["QSpreadPct_TW_m"].loc[
                 model_pred.index
             ]
