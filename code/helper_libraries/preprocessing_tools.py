@@ -111,3 +111,28 @@ def add_lagged_daily_averages(data_df, columns, window=None, lag_amount=None, wi
     ).set_index(data_df.index)
     
     return data_df
+
+def add_lagged_averages_daily_forecast(data_df, columns, df_merge, window=None, lag_amount=None, win_type=None):
+    lagged_averages_df = (
+        data_df[columns]
+        .groupby(pd.Grouper(freq="1d"))
+        .mean()
+        .rolling(window, win_type=win_type)
+        .mean()
+        .dropna()
+        .shift(lag_amount)
+        .reset_index()
+        .rename(columns={"datetime": "date"})
+    )
+            
+            
+        
+    df_merge = df_merge.merge(
+        lagged_averages_df,
+        on="date",
+        how="left",
+        suffixes=("", f"_{window}_{lag_amount}_lagged_daily_avg"),
+    ).set_index(df_merge.index)
+    
+    
+    return df_merge

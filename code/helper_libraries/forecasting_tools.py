@@ -24,6 +24,7 @@ def forecasting_pipeline(model_list, Y_ins, X_ins, Y_oos, X_oos):
 
     # Produce OOS forecasts
     mtest = ModelTester(mtrain)
+    print(X_oos.shape)
     oos_forecasts, model_params = mtest.forecast(Y_oos, X_oos)
     forecast_output = oos_forecasts
     forecast_log["fitted_parameters"] = model_params

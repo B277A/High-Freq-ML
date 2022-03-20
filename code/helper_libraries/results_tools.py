@@ -19,18 +19,20 @@ else:
 
 ## Data prep
 def load_model_results(
-    folder=None,
+    folder_name=None,
     overnight=False,
     oos_periods=2,
     predictors="All",
     debug=False,
+    asset="ff__mkt",
     models_select=None,
 ):
     """
     Loads the model results from a particular folder based on the specified arguments.
 
     Args:
-      folder: the folder where the models are stored; using this will ignore the other arguments
+      folder_name: the folder where the models are stored; using this will ignore the other argument,
+        also assumes that the folder is in the ../../results folder
       overnight: if True, loads data that includes the overnight period. Defaults to False
       oos_periods: selects models with the given variable value of out-of-sample period length in years. Defaults to 2
       predictors: which predictors were used for forecasting
@@ -45,12 +47,14 @@ def load_model_results(
     key_df = pd.read_excel("../../results/key.xlsx")
 
     # If we haven't manually specified a folder
-    if not folder:
+    if not folder_name:
         key_subset_df = key_df.loc[
             (key_df["Overnight"] == overnight)
             & (key_df["OOSPeriods"] == oos_periods)
             & (key_df["Predictors"] == predictors)
+            & (key_df["Asset"] == asset)
         ]
+
         if len(key_subset_df) > 1:
             print(key_subset_df)
             raise Exception(
@@ -60,19 +64,23 @@ def load_model_results(
             print(key_subset_df)
             raise Exception("No model results matching the given parameters detected")
         else:
-            folder = "../../results/" + key_subset_df.iloc[0]["Folder"] + "/Results/"
+            # Detected folder
+            folder_name = key_subset_df.iloc[0]["Folder"]
 
-    if debug:
-        print("Loading the following model results..." + "\n" + "-" * 50)
-        print(key_subset_df.iloc[0].to_string())
-        print("-" * 50)
+        if debug:
+            print("Loading the following model results..." + "\n" + "-" * 50)
+            print(key_subset_df.iloc[0].to_string())
+            print("-" * 50)
+
+    # Define full file path of folder
+    folder = f"../../results/{folder_name}/"
 
     # Get list of models
     unique_models = np.unique(
         [
-            "_".join(x.split("/")[-1].split("_")[:-1])
+            "_".join(x.split("/")[-1].split("\\")[-1].split("_")[:-1])
             for x in glob.glob(f"{folder}/*.parquet")
-            if "rvol" not in x and len(x) > 0
+            if "rvol" not in x and len(x) > 0 and "core" not in x
         ]
     )
 
@@ -102,22 +110,28 @@ def load_model_results(
         [], index=pd.read_parquet(f"{folder}/Benchmark_oss.parquet").index
     )
     forecast_ins_df = pd.DataFrame(
-        [], index=pd.read_parquet(f"{folder}/Benchmark_insample.parquet").index
+        [], index=pd.read_parquet(f"{folder}/Benchmark_core_insample.parquet").index
     )
 
     # Load data from each of the other models
     for model in unique_models:
         forecast_oss_df["oss_" + model] = pd.read_parquet(
-            f"{folder}/" + model + "_oss.parquet"
-        ).values
-        forecast_ins_df["ins_" + model] = pd.read_parquet(
-            f"{folder}/" + model + "_insample.parquet"
+            (f"{folder}" + model + "_oss.parquet")
         ).values
 
-    return forecast_oss_df, forecast_ins_df
+        try:
+            forecast_ins_df["ins_" + model] = pd.read_parquet(
+                (f"{folder}" + model + "_insample.parquet")
+            ).values
+        except:
+            forecast_ins_df["ins_" + model] = pd.read_parquet(
+                (f"{folder}" + model + "_core_insample.parquet")
+            ).values
+
+    return forecast_oss_df, forecast_ins_df, folder_name
 
 
-def load_mkt_rf_returns(overnight=True):
+def load_mkt_rf_returns():
     """
     Loads the market returns and the Fama-French risk-fre rate (1 month TBill)
     """
@@ -157,11 +171,6 @@ def load_mkt_rf_returns(overnight=True):
     )
     hrf_df["rf"] = hrf_df["rf"] / hrf_df.groupby("date")["rf"].transform("count")
     hrf_df = hrf_df.set_index("datetime")
-
-    # Drop overnight?
-    if not overnight:
-        fret_df = fret_df.loc[fret_df.index.time != dt.time(9, 30)]
-        hrf_df = hrf_df.loc[hrf_df.index.time != dt.time(9, 30)]
 
     return fret_df, hrf_df
 
@@ -253,8 +262,7 @@ def compute_ms_weights_fast(trade_ind, cutoff):
 
     n = np.shape(trade_ind)[0]
     weights = np.zeros(n)
-    count_post = 0
-    in_trade = 0
+    in_trade = 1
 
     for i in range(n):
         if trade_ind[i] > cutoff:
@@ -274,14 +282,14 @@ def compute_ms_weights_fast(trade_ind, cutoff):
 def get_weights_ms_strat(model_info_dict, cutoff):
     """Mathias's top secret trading strategy"""
 
-    # Tanh of z-scores of predictions
+    # Z-scores of predictions
     model_pred = model_info_dict["model_pred"]
-    # model_pred_std = model_info_dict["model_pred_std"]
-    model_pred_z_tanh = np.tanh(model_pred / np.std(model_pred))
+    model_pred_std = model_info_dict["model_pred_std"]
+    model_pred_z = model_pred / model_pred_std
 
     # Get weights using fast numba function
-    X_tanh = model_pred_z_tanh.values
-    weights = compute_ms_weights_fast(X_tanh, cutoff)
+    Z_values = model_pred_z.values
+    weights = compute_ms_weights_fast(Z_values, cutoff)
     weights = pd.Series(weights, index=model_pred.index)
 
     return weights
@@ -289,6 +297,7 @@ def get_weights_ms_strat(model_info_dict, cutoff):
 
 def get_trading_results(
     forecast_oss_df,
+    forecast_ins_df,
     spread_df,
     market_returns,
     riskfree_returns,
@@ -299,7 +308,7 @@ def get_trading_results(
     """
     Takes the model predictions, the market returns, the riskfree rate, the spread, and the trading
     strategies, and it outputs the results of the trading strategies.
-    
+
     Args:
       forecast_oss_df: The OSS forecast dataframe
       spread_df: The spread dataframe
@@ -309,7 +318,7 @@ def get_trading_results(
       model_list: list of model names
       drop_overnight: whether to drop overnight returns. Defaults to False
       hold_cash: whether to hold cash or not. Defaults to True
-    
+
     Returns:
       oss_results_all_df: a dataframe with the summarized results of each strategy
       oss_returns_all_df: a dataframe with the returns of each strategy
@@ -344,6 +353,9 @@ def get_trading_results(
             # Put into dictionary
             model_info_dict = {}
             model_info_dict["model_pred"] = model_pred
+            model_info_dict["model_pred_std"] = forecast_ins_df[
+                "ins_" + model_name
+            ].std()
             model_info_dict["spread"] = spread_df["QSpreadPct_TW_m"].loc[
                 model_pred.index
             ]
@@ -358,17 +370,23 @@ def get_trading_results(
                 weights = get_weights_sign_positive(model_info_dict)
             elif strategy_name == "Tanh":
                 weights = get_weights_tanh(model_info_dict)
-            elif strategy_name == "MS Strategy 0.5":
-                weights = get_weights_ms_strat(model_info_dict, 0.5)
-            elif strategy_name == "MS Strategy 0.9":
-                weights = get_weights_ms_strat(model_info_dict, 0.9)
+            elif strategy_name == "MS Strategy 1":
+                weights = get_weights_ms_strat(model_info_dict, 1)
+            elif strategy_name == "MS Strategy 2":
+                weights = get_weights_ms_strat(model_info_dict, 2)
+            elif "MS Strategy" in strategy_name:
+                cutoff = float(strategy_name.split("Strategy ")[-1])
+                weights = get_weights_ms_strat(model_info_dict, cutoff)
             else:
                 raise Exception("Unknown trading strategy: ", strategy_name)
 
             # Convert to float
             weights = weights.astype(float)
+            weights_index = weights.index
 
-            # Strategy statistics
+            ## Strategy returns, turnover, and trading cost adjusted returns
+
+            # Returns and turnover
             portfolio_returns = weights * market_returns + (1 - weights) * (
                 riskfree_returns
             ) * (1 - hold_cash)
@@ -379,7 +397,12 @@ def get_trading_results(
                 "turnover"
             ).join(spread_df[["QSpreadPct_TW_m"]] / 2).prod(axis=1)
 
-            # Averages
+            # Filter down to proper index
+            portfolio_returns = portfolio_returns.loc[weights_index]
+            portfolio_turnover = portfolio_turnover.loc[weights_index]
+            portfolio_returns_adj = portfolio_returns_adj.loc[weights_index]
+
+            ## Averages
             portfolio_average_return = portfolio_returns.sum() / n_years
             portfolio_average_return_adj = portfolio_returns_adj.sum() / n_years
             portfolio_average_excess_return = (
@@ -397,22 +420,22 @@ def get_trading_results(
                 portfolio_average_excess_return_adj / portfolio_average_vol
             )
 
-            # Save results to dataframe
+            ## Save results to dataframe
             oss_results_model.loc[strategy_name, "Return"] = round(
-                portfolio_average_return, 2
+                portfolio_average_return, 4
             )
             oss_results_model.loc[strategy_name, "ReturnAdj"] = round(
-                portfolio_average_return_adj, 2
+                portfolio_average_return_adj, 4
             )
             oss_results_model.loc[strategy_name, "Trades"] = round(
                 portfolio_average_turnover, 1
             )
-            oss_results_model.loc[strategy_name, "Sharpe"] = round(portfolio_sharpe, 2)
+            oss_results_model.loc[strategy_name, "Sharpe"] = round(portfolio_sharpe, 3)
             oss_results_model.loc[strategy_name, "SharpeAdj"] = round(
-                portfolio_sharpe_adj, 2
+                portfolio_sharpe_adj, 3
             )
             oss_results_model.loc[strategy_name, "rvol"] = round(
-                portfolio_average_vol, 2
+                portfolio_average_vol, 3
             )
             oss_results_model.loc[strategy_name, "Name (col)"] = model_col_name
             oss_results_model.loc[strategy_name, "Name"] = model_name
@@ -445,4 +468,3 @@ def get_trading_results(
         oss_weights_all_df,
         oss_retpred_all_df,
     )
-
