@@ -134,6 +134,8 @@ _temp/
 # Data folders
 proc/
 results/
+data/regressors/
+data/taq/prices/
 
 # Documents
 docs/
