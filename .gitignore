@@ -136,6 +136,8 @@ proc/
 results/
 data/regressors/
 data/taq/prices/
+data/old
+data/keys/crsp_me.feather
 
 # Documents
 docs/

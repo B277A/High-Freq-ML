@@ -1,0 +1,14 @@
+#!/bin/bash
+#SBATCH --job-name=clean_prices_batch
+#SBATCH --time=4:00:00
+#SBATCH --mem=8G
+#SBATCH -p scavenger
+#SBATCH -e logs/clean_prices_batch_%a.err
+#SBATCH -o logs/clean_prices_batch_%a.out
+#SBATCH --array=0-301
+#SBATCH --requeue
+
+
+source ~/.bashrc
+source ~/.pyenv/bin/activate
+python clean_prices_array_job.py
