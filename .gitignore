@@ -131,6 +131,9 @@ dmypy.json
 # Temp folders
 _temp/
 
+# Store
+*.DS_Store
+
 # Data folders
 proc/
 results/
@@ -138,6 +141,7 @@ data/regressors/
 data/taq/prices/
 data/old
 data/keys/crsp_me.feather
+data/taq/clean_prices_1min
 
 # Documents
 docs/
