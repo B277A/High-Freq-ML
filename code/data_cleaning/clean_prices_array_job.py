@@ -12,8 +12,7 @@ import datetime as dt
 import logging
 
 
-#### Task
-
+### Task
 taskID=int(os.environ['SLURM_ARRAY_TASK_ID'])
 
 ### Logging
@@ -36,8 +35,8 @@ logging.info(f'Starting job: {taskID}')
 ### Params
 
 crsp_folder = '/hpc/group/dfe/sa400/data_links/CRSP/daily/'
-taq_price_folder = '/hpc/group/dfe/sa400/data_links/TAQ/prices/'
-output_folder = '../../data/proc/clean_prices/' # This symlinks to the dfe folder
+taq_price_folder = '/hpc/group/dfe/sa400/data_links/HFML/data/taq/prices/'
+output_folder = '/hpc/group/dfe/sa400/data_links/HFML/data/proc/clean_prices_etf/' # This symlinks to the dfe folder
 dlret_folder = '/hpc/group/dfe/sa400/data_links/CRSP/dlret/'
 me_folder = '/hpc/group/dfe/sa400/data_links/CRSP/me/'
 
@@ -56,11 +55,6 @@ crsp_files = glob.glob(crsp_folder + '*.parquet')
 ## Stock info
 logging.info(f'Loading stock info')
 
-# For reuse
-stock_info_df = pd.read_feather('../../data/keys/stock_universe.feather')
-stock_info_df['jdate'] = pd.to_datetime(stock_info_df['dt'].dt.date) + MonthEnd(0)
-stock_info_df['jdate_ym'] = stock_info_df['jdate'].dt.strftime('%Y%m')
-
 # Read in data
 crspmsedelist_df = pd.read_parquet(dlret_folder + 'dlret.parquet')
 
@@ -70,7 +64,7 @@ crspmsedelist_df = pd.read_parquet(dlret_folder + 'dlret.parquet')
 ### Params
 
 # List of all times to include
-freq = 1 # minute
+freq = 15 # minute
 all_times = [
     x.strftime("%H:%M:%S")
     for x in pd.date_range(
@@ -131,16 +125,8 @@ def clean_crsp(yyyymm):
     crsp_me_subset_df = pd.read_parquet(f'{me_folder}{yyyymm}.parquet')
     crsp_df = crsp_df.merge(crsp_me_subset_df, on = ['permno', 'date'], how = 'left')
     
-    # Add additional stock info
-    stock_info_subset_df = stock_info_df.loc[stock_info_df['jdate_ym'] == yyyymm]
-    proc_df = crsp_df.merge(
-        stock_info_subset_df[[ 'permno', 'jdate', 'shrcd', 'exchcd', 'gvkey', 'mcap_rank']],
-        on=["permno"],
-        how="left",
-    )
-        
-    # Filter by share/exchange code and whether stock is primary
-    proc_df = proc_df.query('shrcd in (10,11) & exchcd in (1,2,3)')
+    # Add additional stock info (SKIP!)
+    proc_df = crsp_df.copy()
     
     # Hand-cleaning, no easy way to deal with these 'bad' permnos, so just drop
     proc_df = proc_df.loc[~proc_df['permno'].isin([90806, 83712, 47387])]
@@ -188,6 +174,14 @@ def clean_taq(date):
         .drop("symbol_last_2", axis=1)
         .copy()
     )
+    
+    # Fix missing permno                                                      # <----- Special for HFML data
+    taq_df['permno'] = taq_df['permno'].astype(str)
+    taq_df.loc[taq_df['symbol'] == 'QQQ', 'permno'] = '86755'
+    
+    # Fix mislabelled symbol                                                  # <----- Special for HFML data
+    taq_df['symbol'] = taq_df['symbol'].astype(str)
+    taq_df.loc[taq_df['symbol'] == 'QQQQ', 'symbol'] = 'QQQ'
 
     # Drop cases with missing permnos
     taq_df = taq_df.loc[taq_df["permno"].str.isnumeric()]
@@ -379,6 +373,10 @@ def merge_crsp_taq(date, clean_crsp_date_df, interpolate=True):
     # Resample the CRSP data
     resample_df = clean_crsp_date_df.merge(index_df, on=["permno", "datetime"], how="right")
 
+    # Filter CRSP data to only those permnos in TAQ data                                        # <----- Special for HFML data
+    taq_permnos = clean_taq_df.permno.unique()
+    resample_df = resample_df.loc[resample_df['permno'].isin(taq_permnos)]
+
     # Merge with taq
     rm_df = resample_df.merge(
         clean_taq_df,
@@ -471,20 +469,25 @@ def process_date(yyyymm):
     logging.info(f'Read CRSP Data for {yyyymm}')
 
     # Go through each date and infill TAQ prices
+    df_list = []
     for df in map(helper_func, clean_crsp_df.groupby(["date"])):
         date_str = df['datetime'].iloc[0].strftime("%Y%m%d")
-        df.to_parquet(output_folder + date_str + '.parquet')
+        # df.to_parquet(output_folder + date_str + '.parquet')
+        df_list.append(df)
         logging.info(f'Processed {date_str}')
+        
+    logging.info(f'Saving results...')
+    pd.concat(df_list).to_parquet(output_folder + str(yyyymm) + '.parquet')
     
     return
-
 
 #### Processing 
 
 # List of dates
 yyyymm_list = np.sort(
-    list(map(lambda x: pd.to_datetime(x).strftime("%Y%m"), stock_info_df.query('dt >= "1996"')["dt"].unique()))
+    list(map(lambda x: pd.to_datetime(x).strftime("%Y%m"), pd.date_range('1996-01', '2021-01', freq = '1m')))
 )
+
 
 # Get task
 yyyymm = yyyymm_list[taskID]
